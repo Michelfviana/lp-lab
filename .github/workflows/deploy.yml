@@ -114,6 +114,8 @@ jobs:
           fi
           if ! python3 - <<'PY'
           import json
+          import time
+          from urllib.error import URLError
           from urllib.request import Request, urlopen
 
           payload = {
@@ -130,8 +132,17 @@ jobs:
               data=json.dumps(payload).encode(),
               headers={"Content-Type": "application/json"},
           )
-          with urlopen(request, timeout=10) as response:
-              result = json.load(response)
+          last_error = None
+          for attempt in range(15):
+              try:
+                  with urlopen(request, timeout=3) as response:
+                      result = json.load(response)
+                  break
+              except (URLError, TimeoutError) as error:
+                  last_error = error
+                  if attempt == 14:
+                      raise SystemExit(f"Application did not become ready: {last_error}")
+                  time.sleep(1)
           assert result["status"] == "optimal"
           assert result["variables"] == ["2", "6"]
           assert result["objective_value"] == "36"
