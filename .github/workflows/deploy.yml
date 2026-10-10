@@ -33,6 +33,8 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare production files
+        env:
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -55,7 +57,7 @@ jobs:
                   text = text.replace(old, new, 1)
               path.write_text(text)
           PY
-          tar -czf "$RUNNER_TEMP/lp-lab-${GITHUB_SHA}.tar.gz" app.py solver.py static
+          tar -czf "$RUNNER_TEMP/lp-lab-${RELEASE_ID}.tar.gz" app.py solver.py static
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -71,8 +73,8 @@ jobs:
       - name: Upload, restart, and verify
         env:
           SSH_DIR: ${{ runner.temp }}/lp-lab-ssh
-          ARCHIVE: ${{ runner.temp }}/lp-lab-${{ github.sha }}.tar.gz
-          RELEASE_SHA: ${{ github.sha }}
+          ARCHIVE: ${{ runner.temp }}/lp-lab-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz
+          RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           ssh_opts=(
@@ -82,13 +84,13 @@ jobs:
             -o "UserKnownHostsFile=$SSH_DIR/known_hosts"
           )
           remote="lpdeploy@lp-lab.duckdns.org"
-          scp "${ssh_opts[@]}" "$ARCHIVE" "$remote:/home/lpdeploy/lp-lab-${RELEASE_SHA}.tar.gz"
-          ssh "${ssh_opts[@]}" "$remote" bash -s -- "$RELEASE_SHA" <<'REMOTE'
+          scp "${ssh_opts[@]}" "$ARCHIVE" "$remote:/home/lpdeploy/lp-lab-${RELEASE_ID}.tar.gz"
+          ssh "${ssh_opts[@]}" "$remote" bash -s -- "$RELEASE_ID" <<'REMOTE'
           set -euo pipefail
-          release_sha="$1"
+          release_id="$1"
           base=/opt/lp-lab
-          release="$base/releases/$release_sha"
-          archive="/home/lpdeploy/lp-lab-$release_sha.tar.gz"
+          release="$base/releases/$release_id"
+          archive="/home/lpdeploy/lp-lab-$release_id.tar.gz"
           mkdir -m 2775 "$release"
           tar -xzf "$archive" -C "$release"
           rm -f "$archive"
