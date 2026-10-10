@@ -1,0 +1,144 @@
+name: Test and deploy LP Lab
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lp-lab-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test solver and interface
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run solver tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Check JavaScript syntax
+        run: node --check static/app.js
+
+  deploy:
+    name: Deploy to LP Lab server
+    needs: test
+    if: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Prepare production files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("static/index.html"): {
+                  'href="/style.css"': 'href="/lp-lab/style.css"',
+                  'src="/app.js"': 'src="/lp-lab/app.js"',
+                  'href="/"': 'href="/lp-lab/"',
+              },
+              Path("static/app.js"): {
+                  "fetch('/api/solve'": "fetch('/lp-lab/api/solve'",
+              },
+          }
+          for path, mapping in replacements.items():
+              text = path.read_text()
+              for old, new in mapping.items():
+                  if text.count(old) != 1:
+                      raise SystemExit(f"Expected one occurrence of {old!r} in {path}")
+                  text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+          tar -czf "$RUNNER_TEMP/lp-lab-${GITHUB_SHA}.tar.gz" app.py solver.py static
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "Configure the DEPLOY_SSH_KEY repository secret before enabling deployments."
+            exit 1
+          fi
+          install -m 700 -d "$RUNNER_TEMP/lp-lab-ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/lp-lab-ssh/id_ed25519"
+          chmod 600 "$RUNNER_TEMP/lp-lab-ssh/id_ed25519"
+          install -m 600 .github/deploy_known_hosts "$RUNNER_TEMP/lp-lab-ssh/known_hosts"
+      - name: Upload, restart, and verify
+        env:
+          SSH_DIR: ${{ runner.temp }}/lp-lab-ssh
+          ARCHIVE: ${{ runner.temp }}/lp-lab-${{ github.sha }}.tar.gz
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$SSH_DIR/id_ed25519"
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$SSH_DIR/known_hosts"
+          )
+          remote="lpdeploy@lp-lab.duckdns.org"
+          scp "${ssh_opts[@]}" "$ARCHIVE" "$remote:/home/lpdeploy/lp-lab-${RELEASE_SHA}.tar.gz"
+          ssh "${ssh_opts[@]}" "$remote" bash -s -- "$RELEASE_SHA" <<'REMOTE'
+          set -euo pipefail
+          release_sha="$1"
+          base=/opt/lp-lab
+          release="$base/releases/$release_sha"
+          archive="/home/lpdeploy/lp-lab-$release_sha.tar.gz"
+          mkdir -m 2775 "$release"
+          tar -xzf "$archive" -C "$release"
+          rm -f "$archive"
+
+          previous=""
+          if [ -L "$base/current" ]; then
+            previous="$(readlink "$base/current")"
+          fi
+          ln -s "$release" "$base/current.next"
+          mv -Tf "$base/current.next" "$base/current"
+
+          rollback() {
+            if [ -n "$previous" ]; then
+              ln -sfn "$previous" "$base/current.rollback"
+              mv -Tf "$base/current.rollback" "$base/current"
+              sudo -n /usr/bin/systemctl restart lp-lab.service
+            fi
+          }
+
+          if ! sudo -n /usr/bin/systemctl restart lp-lab.service; then
+            rollback
+            exit 1
+          fi
+          if ! python3 - <<'PY'
+          import json
+          from urllib.request import Request, urlopen
+
+          payload = {
+              "sense": "max",
+              "objective": [3, 5],
+              "constraints": [
+                  {"coefficients": [1, 0], "operator": "<=", "rhs": 4},
+                  {"coefficients": [0, 2], "operator": "<=", "rhs": 12},
+                  {"coefficients": [3, 2], "operator": "<=", "rhs": 18},
+              ],
+          }
+          request = Request(
+              "http://127.0.0.1:8501/api/solve",
+              data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          with urlopen(request, timeout=10) as response:
+              result = json.load(response)
+          assert result["status"] == "optimal"
+          assert result["variables"] == ["2", "6"]
+          assert result["objective_value"] == "36"
+          PY
+          then
+            rollback
+            exit 1
+          fi
+          sudo -n /usr/bin/systemctl is-active lp-lab.service
+          REMOTE

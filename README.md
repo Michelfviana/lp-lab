@@ -12,6 +12,45 @@ python app.py
 
 Abra **<http://127.0.0.1:8501>**. Para escolher outra porta: `python app.py --port 8502`. Encerre com Ctrl+C. O servidor aceita conexões apenas do próprio computador.
 
+## Servidor
+
+A versão publicada está em **<https://lp-lab.duckdns.org>**. O servidor Ubuntu roda o app como serviço systemd e o Nginx encaminha as requisições HTTPS. O certificado TLS é emitido pelo Let's Encrypt e renovado pelo Certbot.
+
+Para consultar o serviço no servidor:
+
+```bash
+ssh ubuntu@lp-lab.duckdns.org 'sudo systemctl status lp-lab'
+ssh ubuntu@lp-lab.duckdns.org 'sudo journalctl -u lp-lab -f'
+```
+
+O endereço usa DuckDNS. Se o IP público do servidor mudar, atualize o registro `lp-lab` no painel DuckDNS para apontar ao novo IP e confira a conectividade HTTPS.
+
+## Deploy automático pelo GitHub
+
+O workflow `.github/workflows/deploy.yml` roda os testes em cada `push` para `main`. Depois que a configuração do SSH estiver pronta e o deploy habilitado, ele envia o app ao servidor, reinicia `lp-lab.service` e verifica a resposta da aplicação. Alterações em outras branches não publicam o site.
+
+### Configuração inicial
+
+1. Gere uma chave exclusiva para o deploy no seu computador:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "github-actions-lp-lab" -f ~/.ssh/lp-lab-actions -N ""
+   ```
+
+2. Instale **apenas a chave pública** no usuário de deploy do servidor:
+
+   ```bash
+   cat ~/.ssh/lp-lab-actions.pub | ssh ubuntu@lp-lab.duckdns.org 'sudo tee -a /home/lpdeploy/.ssh/authorized_keys >/dev/null && sudo chown lpdeploy:lpdeploy /home/lpdeploy/.ssh/authorized_keys && sudo chmod 600 /home/lpdeploy/.ssh/authorized_keys'
+   ```
+
+3. No GitHub, abra **Settings → Secrets and variables → Actions** do repositório. Crie o secret `DEPLOY_SSH_KEY` com o conteúdo de `~/.ssh/lp-lab-actions` (a chave privada). Nunca coloque essa chave no código, em um commit ou nesta conversa.
+
+4. Na aba **Variables**, crie `DEPLOY_ENABLED` com o valor `true`. O deploy fica desabilitado até esse passo.
+
+Depois, valide com um commit pequeno e faça `git push origin main`. Veja o resultado em **Actions** no GitHub. Se os testes falharem, o deploy não é executado. O host SSH está definido no workflow e sua chave pública verificada fica em `.github/deploy_known_hosts`.
+
+O workflow usa `actions/checkout` v7.0.1, fixado em um commit verificado, e permite ler o conteúdo do repositório. O deploy autentica pelo usuário restrito `lpdeploy`; a chave pública do servidor está fixada em `.github/deploy_known_hosts`, e a chave privada fica armazenada como secret do GitHub Actions.
+
 ## Recursos
 
 - Maximização e minimização, de 2 a 8 variáveis contínuas não negativas.
