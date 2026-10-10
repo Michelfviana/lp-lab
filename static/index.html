@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>PL Lab · Programação Linear</title>
+    <link rel="stylesheet" href="/style.css">
+    <script defer src="/app.js"></script>
+</head>
+
+<body>
+    <header><a class="brand" href="/"><span class="logo">PL</span> PL Lab <span class="badge">PESQUISA
+                OPERACIONAL</span></a><button id="help-toggle" class="ghost">Como funciona</button></header>
+    <main>
+        <section class="hero">
+            <div>
+                <p class="eyebrow">DO MODELO À SOLUÇÃO</p>
+                <h1>Explore cada passo.<br><span>Encontre o ótimo.</span></h1>
+                <p>Monte seu problema e acompanhe a solução no gráfico e nos tableaux do Simplex.</p>
+            </div>
+            <div class="hero-art" aria-hidden="true"><svg viewBox="0 0 220 150">
+                    <path d="M20 125H205M30 135V15" stroke="currentColor" fill="none" />
+                    <path d="M30 125V55L80 30L155 95V125Z" fill="#39bf981f" />
+                    <path d="M30 100L155 25M30 45L190 115" stroke="#39bf98" stroke-width="2" />
+                    <circle cx="88" cy="70" r="6" fill="#b2f5d9" />
+                    <path d="M30 125L88 70" stroke="#b2f5d9" stroke-dasharray="4" />
+                </svg><span>Uma decisão. Muitas possibilidades.</span></div>
+        </section>
+        <section id="help" class="panel hidden">
+            <h2>Um laboratório para aprender</h2>
+            <p>Uma função objetivo mede o que você quer maximizar ou minimizar. As restrições definem as escolhas
+                permitidas. Todas as variáveis deste aplicativo são contínuas e não negativas: xᵢ ≥ 0.</p>
+            <div class="help-grid">
+                <div>
+                    <h3>1. Modele</h3>
+                    <p>Informe os coeficientes de cada variável. Aceitamos inteiros, decimais com ponto ou vírgula e
+                        frações como 3/2.</p>
+                </div>
+                <div>
+                    <h3>2. Explore</h3>
+                    <p>Com duas variáveis, veja a região viável e os vértices. Arraste o gráfico e use a roda do mouse
+                        para ampliar.</p>
+                </div>
+                <div>
+                    <h3>3. Acompanhe</h3>
+                    <p>O Simplex escolhe uma variável para entrar na base e outra para sair. A regra de Bland evita
+                        ciclos. Restrições ≥ e = podem exigir artificiais e a Fase I.</p>
+                </div>
+            </div>
+            <p class="muted">f = folga · e = excesso · a = artificial. O solver trabalha com frações exatas; o gráfico
+                usa aproximações decimais. Até 8 variáveis e 20 restrições.</p>
+        </section>
+        <div class="workspace">
+            <aside class="panel model">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">01 / MODELO</p>
+                        <h2>Seu problema</h2>
+                    </div><span class="dot"></span>
+                </div>
+                <label for="example">Comece com um exemplo</label><select id="example">
+                    <option value="doc">Exemplo do projeto</option>
+                    <option value="production">Planejamento de produção</option>
+                    <option value="min">Minimização com Fase I</option>
+                    <option value="infeasible">Problema inviável</option>
+                    <option value="unbounded">Problema ilimitado</option>
+                    <option value="multiple">Múltiplas soluções ótimas</option>
+                    <option value="three">Três variáveis</option>
+                </select>
+                <div class="row controls"><label>Objetivo<select id="sense">
+                            <option value="max">Maximizar</option>
+                            <option value="min">Minimizar</option>
+                        </select></label><label>Variáveis<select id="variable-count">
+                            <option>2</option>
+                            <option>3</option>
+                            <option>4</option>
+                            <option>5</option>
+                            <option>6</option>
+                            <option>7</option>
+                            <option>8</option>
+                        </select></label></div>
+                <h3>Função objetivo</h3>
+                <div id="objective" class="coefficient-grid"></div>
+                <div class="section-heading">
+                    <h3>Restrições</h3><span id="constraint-count" class="muted"></span>
+                </div>
+                <div id="constraints"></div><button id="add-constraint" class="add">＋ Adicionar restrição</button>
+                <p class="nonnegative">Todas as variáveis: xᵢ ≥ 0</p>
+                <div id="preview" class="preview"></div><button id="solve" class="primary">Resolver problema
+                    <span>↗</span></button>
+                <p id="error" class="error hidden" role="alert"></p>
+                <div class="row file-actions"><button id="save-model" class="ghost">↓ Salvar modelo</button><button
+                        id="import-model" class="ghost">↑ Importar JSON</button><input id="file" type="file"
+                        accept=".json,application/json" hidden></div>
+                <details>
+                    <summary>Modelos recentes</summary>
+                    <div id="history"></div>
+                </details>
+            </aside>
+            <section class="results">
+                <div id="empty" class="panel empty">
+                    <div class="empty-icon">↗</div>
+                    <h2>Seu próximo ponto de partida</h2>
+                    <p>Edite o modelo ao lado e clique em <strong>Resolver problema</strong> para explorar a solução.
+                    </p>
+                </div>
+                <div id="output" class="hidden">
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">02 / EXPLORAÇÃO</p>
+                            <h2>Resultado da análise</h2>
+                        </div><button id="print" class="ghost">Imprimir relatório</button>
+                    </div>
+                    <div id="stale" class="notice hidden">O modelo foi alterado. Resolva novamente para atualizar esta
+                        análise.</div>
+                    <div id="status" role="status"></div>
+                    <div id="metrics" class="metrics"></div>
+                    <div class="tabs" role="tablist"><button class="active" role="tab" aria-selected="true"
+                            id="tab-graph" data-tab="graph">Método gráfico</button><button role="tab"
+                            aria-selected="false" id="tab-simplex" data-tab="simplex">Simplex passo a
+                            passo</button><button role="tab" aria-selected="false" id="tab-analysis"
+                            data-tab="analysis">Análise da solução</button></div>
+                    <section id="graph" role="tabpanel" aria-labelledby="tab-graph" class="panel tab-content">
+                        <div class="section-heading">
+                            <div>
+                                <h3>Geometria da solução</h3>
+                                <p class="muted">Arraste para mover · role para ampliar · toque nos vértices</p>
+                            </div><button id="reset-view" class="ghost">Restaurar vista</button>
+                        </div>
+                        <div id="graph-unavailable" class="notice hidden">O método gráfico está disponível para
+                            problemas com duas variáveis. Acompanhe a solução na aba Simplex.</div>
+                        <div id="graph-area">
+                            <div class="canvas-wrap"><canvas id="canvas"
+                                    aria-label="Gráfico das restrições, região viável e vértices" tabindex="0"></canvas>
+                                <div id="tooltip" class="graph-tooltip hidden"></div>
+                            </div>
+                            <div id="legend" class="legend"></div><label class="slider-label">Desloque a reta da função
+                                objetivo <span id="objective-level"></span><input id="level" type="range" min="0"
+                                    max="100" value="50"></label>
+                            <p id="graph-note" class="muted"></p>
+                            <h3>Vértices viáveis</h3>
+                            <div id="vertices" class="table-wrap"></div>
+                        </div>
+                    </section>
+                    <section id="simplex" role="tabpanel" aria-labelledby="tab-simplex"
+                        class="panel tab-content hidden">
+                        <div class="section-heading">
+                            <h3>Tableaux do Simplex</h3><span id="step-count" class="badge"></span>
+                        </div>
+                        <div class="step-controls"><button id="previous" class="ghost">← Anterior</button><input
+                                id="step-range" type="range" min="0" value="0" aria-label="Etapa do Simplex"><button
+                                id="next" class="ghost">Próxima →</button></div>
+                        <div id="step-message" class="notice"></div>
+                        <div id="tableau" class="table-wrap"></div>
+                        <p class="muted">A linha Z usa a convenção −c: coeficientes negativos indicam melhoria. A coluna
+                            destacada entra na base; a linha destacada sai. Razões são calculadas somente com
+                            coeficientes positivos.</p><label class="inline"><input id="fractions" type="checkbox"
+                                checked> Mostrar frações exatas</label><button id="export-tableaux" class="ghost">↓
+                            Exportar tableaux CSV</button>
+                        <div id="normalization"></div>
+                    </section>
+                    <section id="analysis" role="tabpanel" aria-labelledby="tab-analysis"
+                        class="panel tab-content hidden">
+                        <h3>O que a solução significa</h3>
+                        <div id="interpretation"></div>
+                        <div id="constraint-analysis" class="table-wrap"></div>
+                        <div class="notice">As variáveis representam quantidades contínuas. Para exigir valores
+                            inteiros, é necessário um método de programação inteira.</div><button id="export-result"
+                            class="ghost">↓ Exportar análise JSON</button>
+                    </section>
+                </div>
+            </section>
+        </div>
+        <footer>PL Lab · Projeto de Pesquisa Operacional · Python + Simplex de duas fases</footer>
+    </main>
+</body>
+
+</html>
