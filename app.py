@@ -1,4 +1,5 @@
 """Servidor local do laboratório de Programação Linear (Python 3.10+)."""
+
 import argparse
 import errno
 import json
@@ -6,6 +7,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+
 from solver import solve
 
 STATIC = Path(__file__).resolve().parent / 'static'

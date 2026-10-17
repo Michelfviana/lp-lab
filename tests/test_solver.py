@@ -1,7 +1,12 @@
-import unittest
 import random
-from itertools import combinations
+import sys
+import unittest
 from fractions import Fraction
+from itertools import combinations
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from solver import solve
 
 

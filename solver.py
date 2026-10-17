@@ -1,13 +1,13 @@
 """Simplex de duas fases com aritmética racional e registro didático."""
 
+import re
 from fractions import Fraction
 from itertools import combinations
-import re
 
 
 def number(value):
     if isinstance(value, bool):
-        raise ValueError("Use números nos coeficientes.")
+        raise TypeError("Use números nos coeficientes.")
     raw = str(value).strip().replace(",", ".")
     if len(raw) > 40:
         raise ValueError("Cada coeficiente deve ter até 40 caracteres.")
@@ -29,7 +29,7 @@ def number(value):
 
 def validate(data):
     if not isinstance(data, dict):
-        raise ValueError("O problema precisa ser um objeto JSON.")
+        raise TypeError("O problema precisa ser um objeto JSON.")
     sense = data.get("sense", "max")
     if sense not in ("max", "min"):
         raise ValueError("Selecione maximização ou minimização.")
